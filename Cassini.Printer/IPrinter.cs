@@ -31,6 +31,8 @@ public struct PrinterAttributes
     public string MachineBrand;
     public IntSize2 Resolution;
     public FloatSize3 SizeInMm;
+    public string[] SupportedFileTypes;
+    public string[] Capabilities;
 }
 
 public interface IPrinter : IDisposable
@@ -52,5 +54,5 @@ public interface IPrinterCamera
     public bool CameraAvailable { get; }
 
     public Task<Uri> EnableCamera();
-    public Task DisableCamera();
+    public void DisableCamera();
 }

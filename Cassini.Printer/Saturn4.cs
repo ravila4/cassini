@@ -9,49 +9,59 @@ public class Saturn4 : IPrinter, IPrinterCamera, IDisposable
 {
     private const int kReceiveBufferSize = 16 * 1024;
 
-    public static Task<Saturn4> Connect(string printerId, string mainboardId, IPAddress address)
+    public static Task<Saturn4> Connect(IPAddress address)
     {
-        return Connect(printerId, mainboardId, address, new UriBuilder("ws", address.ToString(), 3030, "websocket").Uri);
+        return Connect(address, new UriBuilder("ws", address.ToString(), 3030, "websocket").Uri);
     }
 
-    public static async Task<Saturn4> Connect(string printerId, string mainboardId, IPAddress address, Uri websocketUri)
+    public static async Task<Saturn4> Connect(IPAddress address, Uri websocketUri)
     {
         var webSocket = new ClientWebSocket();
         await webSocket.ConnectAsync(websocketUri, CancellationToken.None);
-        return new Saturn4(printerId, mainboardId, address, webSocket);
+        return new Saturn4(address, webSocket);
     }
 
     readonly ClientWebSocket _webSocket;
 
-    Dictionary<string, Action<JsonElement, JsonElement?>> _requestReplyHandlers = new();
+    readonly Dictionary<string, Action<JsonElement, JsonDocument>> _requestReplyHandlers = new();
 
-    Dictionary<string, Action<JsonDocument>> _topicHandlers = new();
+    readonly Dictionary<string, Action<JsonDocument>> _topicHandlers = new();
 
-    Task _receiveTask;
-    
-    internal Saturn4(string printerId, string mainboardId, IPAddress address, ClientWebSocket webSocket)
+    readonly Task _receiveTask;
+
+    internal Saturn4(IPAddress address, ClientWebSocket webSocket)
     {
-        PrinterId = printerId;
-        MainboardId = mainboardId;
+        // Filled in later
+        PrinterId = "";
+        MainboardId = "";
+        Name = "";
+        
         Address = address;
         _webSocket = webSocket;
 
         _topicHandlers.Add("sdcp/status/", OnReceiveStatus);
         _topicHandlers.Add("sdcp/attributes/", OnReceiveAttributes);
-        
-        SendRequest(Elegoo.Command.RequestStatus);
-        SendRequest(Elegoo.Command.RequestAttributes);
-        
+
+        SendRequest(Elegoo.Command.RequestStatus, new Elegoo.EmptyCommandData(), (data, json) => {
+            // The first response to this, we want to pull out the PrinterId and MainboardId.
+            PrinterId = json.RootElement.GetStringProperty("Id")!;
+            MainboardId = json.RootElement.GetProperty("Data").GetStringProperty("MainboardID")!;
+            SendRequest(Elegoo.Command.RequestAttributes);
+        });
+
         _receiveTask = StartReceiveTask();
+
+        // Filled in from attributes later
+        Name = "";
     }
 
     public string Name { get; private set; }
 
     public IPAddress Address { get; }
 
-    public string MainboardId { get; }
+    public string MainboardId { get; private set; }
 
-    public string PrinterId { get; }
+    public string PrinterId { get; private set;  }
 
     public PrinterStatus Status { get; private set; }
 
@@ -73,12 +83,23 @@ public class Saturn4 : IPrinter, IPrinterCamera, IDisposable
 
     public Task<Uri> EnableCamera()
     {
-        throw new NotImplementedException();
+        return SendRequestAsync(Elegoo.Command.SetCameraEnabled, new Elegoo.SetCameraEnabledData() { Enabled = 1 })
+            .ContinueWith(t =>
+            {
+                var json = t.Result;
+                var datadata = json.RootElement.GetProperty("Data").GetProperty("Data");
+                if (datadata.GetIntProperty("Ack") != 0)
+                {
+                    throw new Exception("Failed to enable camera");
+                }
+
+                return new Uri(datadata.GetStringProperty("VideoUrl")!);
+            });
     }
 
-    public Task DisableCamera()
+    public void DisableCamera()
     {
-        throw new NotImplementedException();
+        SendRequest(Elegoo.Command.SetCameraEnabled, new Elegoo.SetCameraEnabledData() { Enabled = 0 });
     }
 
     void OnReceiveStatus(JsonDocument json)
@@ -106,12 +127,16 @@ public class Saturn4 : IPrinter, IPrinterCamera, IDisposable
             n.MachineBrand = attrs.GetStringProperty("BrandName")!;
             n.MachineName = attrs.GetStringProperty("MachineName")!;
 
-            var res = attrs.GetStringProperty("Resolution")!.Split("x").Select(s => int.Parse(s)).ToArray();
+            var res = attrs.GetStringProperty("Resolution")!.Split("x").Select(int.Parse).ToArray();
             n.Resolution = new IntSize2() { x = res[0], y = res[1] };
             
-            var size = attrs.GetStringProperty("XYZsize")!.Split("x").Select(s => float.Parse(s)).ToArray();
+            var size = attrs.GetStringProperty("XYZsize")!.Split("x").Select(float.Parse).ToArray();
             n.SizeInMm = new FloatSize3() { x = size[0], y = size[1], z = size[2] };
 
+            n.SupportedFileTypes = attrs.GetStringArrayProperty("SupportedFileTypes")!;
+            n.Capabilities = attrs.GetStringArrayProperty("Capabilities")!;
+
+            Name = n.Name;
             Attributes = n;
         }
         catch (Exception e)
@@ -136,7 +161,7 @@ public class Saturn4 : IPrinter, IPrinterCamera, IDisposable
                 var message = Encoding.UTF8.GetString(buffer, 0, result.Count);
                 Console.WriteLine("Received: " + message);
                 
-                HandleReceivedMessage(buffer);
+                HandleReceivedMessage(new ArraySegment<byte>(buffer, 0, result.Count));
             }
             else if (result.MessageType == WebSocketMessageType.Close)
             {
@@ -162,8 +187,8 @@ public class Saturn4 : IPrinter, IPrinterCamera, IDisposable
                 var reqId = data.Value.GetStringProperty("RequestID")!;
                 if (_requestReplyHandlers.Remove(reqId, out var action))
                 {
-                    JsonElement? datadata = data.Value.MaybeProperty("Data");
-                    action(data.Value, datadata);
+                    JsonElement datadata = data.Value.MaybeProperty("Data").Value;
+                    action(datadata, json);
                 }
             }
             else
@@ -221,7 +246,7 @@ public class Saturn4 : IPrinter, IPrinterCamera, IDisposable
         SendRequest(command, new Elegoo.EmptyCommandData());
     }
 
-    void SendRequest<T>(Elegoo.Command command, T data, Action<JsonElement, JsonElement?>? replyHandler = null)
+    void SendRequest<T>(Elegoo.Command command, T data, Action<JsonElement, JsonDocument>? replyHandler = null)
     {
         var requestId = Elegoo.MakeRequestId();
         var cmdData = new Elegoo.BasicCommandRequestData()
@@ -247,6 +272,17 @@ public class Saturn4 : IPrinter, IPrinterCamera, IDisposable
         }
 
         SendMessage(message);
+    }
+
+    public async Task<JsonDocument> SendRequestAsync<T>(Elegoo.Command command, T data)
+    {
+        var tcs = new TaskCompletionSource<JsonDocument>();
+
+        SendRequest(command, data, (_, json) => {
+            tcs.SetResult(json);
+        });
+
+        return await tcs.Task;
     }
 
     static string JsonSerialize<T>(T t)

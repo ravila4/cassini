@@ -18,7 +18,7 @@ class Program
 
     static async Task Main(string[] args)
     {
-        var printer = await Saturn4.Connect(PrinterID, MainboardID, System.Net.IPAddress.Parse("192.168.7.199"));
+        var printer = await Saturn4.Connect(System.Net.IPAddress.Parse("192.168.7.199"));
 
         await printer.ReceiveTask;
     }
