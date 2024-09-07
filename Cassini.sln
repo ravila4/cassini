@@ -6,6 +6,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Cassini.Cli", "Cassini.Cli\
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Cassini.Web", "Cassini.Web\Cassini.Web.csproj", "{7B5997F3-7203-4BE0-848A-CB93EE49D48B}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Cassini.App", "Cassini.App\Cassini.App.csproj", "{4D86628F-829E-43C0-8F9C-7BA6D4D08DE6}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -24,5 +26,9 @@ Global
 		{7B5997F3-7203-4BE0-848A-CB93EE49D48B}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{7B5997F3-7203-4BE0-848A-CB93EE49D48B}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{7B5997F3-7203-4BE0-848A-CB93EE49D48B}.Release|Any CPU.Build.0 = Release|Any CPU
+		{4D86628F-829E-43C0-8F9C-7BA6D4D08DE6}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{4D86628F-829E-43C0-8F9C-7BA6D4D08DE6}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{4D86628F-829E-43C0-8F9C-7BA6D4D08DE6}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{4D86628F-829E-43C0-8F9C-7BA6D4D08DE6}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal

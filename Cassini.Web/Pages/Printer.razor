@@ -1,0 +1,17 @@
+@using Cassini.Printer
+<div>
+    <h3>Printer</h3>
+    <span>@PrinterInfo.Hostname: @PrinterInfo.Name</span>
+</div>
+
+@code {
+    IPrinter m_printer;
+    
+    [Parameter] public PrinterDiscovery.DiscoveryResult PrinterInfo { get; set; } = null;
+
+    protected override async Task OnInitializedAsync()
+    {
+        m_printer = await PrinterInfo.Connect();
+        m_printer.Status
+    }
+}

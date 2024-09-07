@@ -1,0 +1,72 @@
+﻿@page "/"
+@using System.Collections.Immutable
+@using Cassini.Printer
+@using System.Linq
+
+<PageTitle>Printers</PageTitle>
+
+<!-- for each printer in DiscoverPrinters, create a new Printer component -->
+<!-- discover printers asynchronously -->
+@if (KnownPrinters == null)
+{
+    <div class="spinner-border text-primary" role="status">
+        <span class="sr-only">Loading...</span>
+    </div>
+}
+else if (KnownPrinters.Count == 0)
+{
+    <div class="alert alert-warning" role="alert">
+        No printers were discovered on the network
+    </div>
+}
+else
+{
+    @foreach (var printer in KnownPrinters)
+    {
+        <Printer PrinterInfo="printer" />
+    }
+}
+
+<!-- IP address to add a new printer manually -->
+<div class="row">
+    <div class="col">
+        Host: <InputText @bind-Value="PrinterHost" />
+    </div>
+    <div class="col">
+        <button class="btn btn-primary" @onclick="AddPrinter">Add Printer</button>
+    </div>
+</div>
+@code {
+    private List<PrinterDiscovery.DiscoveryResult> manualPrinters = new();
+    private IList<PrinterDiscovery.DiscoveryResult>? discoveredPrinters = ImmutableList<PrinterDiscovery.DiscoveryResult>.Empty;
+
+    private List<PrinterDiscovery.DiscoveryResult> KnownPrinters { get; set; } = new();
+
+    private string PrinterHost { get; set; } = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            discoveredPrinters = await PrinterDiscovery.DiscoverPrinters();
+        }
+        catch
+        {
+            discoveredPrinters = ImmutableList<PrinterDiscovery.DiscoveryResult>.Empty;
+        }
+
+        UpdateKnownPrinters();
+    }
+
+    protected async Task AddPrinter()
+    {
+        var printer = await PrinterDiscovery.DiscoverPrinter(PrinterHost);
+        manualPrinters.Add(printer);
+        UpdateKnownPrinters();
+    }
+
+    void UpdateKnownPrinters()
+    {
+        KnownPrinters = manualPrinters.Concat(discoveredPrinters).ToList();
+    }
+}

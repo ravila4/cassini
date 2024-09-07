@@ -35,6 +35,13 @@ public struct PrinterAttributes
     public string[] Capabilities;
 }
 
+public record struct FileListItem
+{
+    public string Name;
+    public long Size;
+    public bool IsDirectory;
+}
+
 public interface IPrinter : IDisposable
 {
     public string Name { get; }
@@ -44,9 +51,18 @@ public interface IPrinter : IDisposable
     
     public PrinterStatus Status { get; }
     public PrinterAttributes Attributes { get; }
+   
+    public event EventHandler<PrinterStatus> StatusChanged;
+    public event EventHandler<PrinterAttributes> AttributesChanged;
 
     public Task UploadFile(string path, string? destinationName = null);
-    public Task<List<string>> ListFiles();
+    public Task<List<FileListItem>> ListFiles(string path);
+    public Task DeleteFiles(IEnumerable<string> files, IEnumerable<string>? folders = null);
+
+    public Task StartPrinting(string file, int layerNumber = 0);
+    public Task PausePrinting();
+    public Task ResumePrinting();
+    public Task StopPrinting();
 }
 
 public interface IPrinterCamera
