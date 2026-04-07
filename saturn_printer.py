@@ -30,8 +30,8 @@ class CurrentStatus(Enum):
 
 # Status field inside PrintInfo
 class PrintInfoStatus(Enum):
-    # TODO: double check these
-    EXPOSURE = 2 
+    IDLE = 0
+    EXPOSURE = 2
     RETRACTING = 3
     LOWERING = 4
     COMPLETE = 16 # pretty sure this is correct
@@ -198,10 +198,10 @@ class SaturnPrinter:
 
                 # We assume that the printer immediately goes into BUSY status after it processes
                 # the upload command
-                if status['CurrentStatus'] == CurrentStatus.READY:
-                    if file_info['Status'] == FileStatus.DONE:
+                if status['CurrentStatus'] == CurrentStatus.READY.value:
+                    if file_info['Status'] == FileStatus.DONE.value:
                         self.file_transfer_future.set_result((total_size, total_size, file_name))
-                    elif file_info['Status'] == FileStatus.ERROR:
+                    elif file_info['Status'] == FileStatus.ERROR.value:
                         logging.error("Transfer error!")
                         self.file_transfer_future.set_result((-1, total_size, file_name))
                     else:
@@ -268,7 +268,7 @@ class SaturnPrinter:
                 current_status = status['CurrentStatus']
                 print_status = print_info['Status']
 
-                if current_status == CurrentStatus.BUSY and print_status > 0:
+                if current_status == CurrentStatus.BUSY.value and print_status > 0:
                     return True
 
                 logging.debug(status)
