@@ -264,6 +264,9 @@ class SaturnPrinter:
 
         self.file_transfer_future = None
 
+        if start_printing and file_status == FileStatus.DONE:
+            await self.print_file(basename)
+
     async def send_command_and_wait(self, cmdid, data=None, abort_on_bad_ack=True):
         # Send the 0 and 1 messages
         req = self.send_command(cmdid, data)
