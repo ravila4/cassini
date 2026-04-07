@@ -14,9 +14,9 @@ import time
 import asyncio
 import logging
 import argparse
-from simple_mqtt_server import SimpleMQTTServer
-from simple_http_server import SimpleHTTPServer
-from saturn_printer import SaturnPrinter, PrintInfoStatus, CurrentStatus, FileStatus
+from cassini.simple_mqtt_server import SimpleMQTTServer
+from cassini.simple_http_server import SimpleHTTPServer
+from cassini.saturn_printer import SaturnPrinter, PrintInfoStatus, CurrentStatus, FileStatus
 
 logging.basicConfig(
     level=logging.INFO,
@@ -209,4 +209,5 @@ def main():
     elif args.command == "print":
         asyncio.run(do_print(printer, args.filename))
 
-main()
+if __name__ == "__main__":
+    main()
