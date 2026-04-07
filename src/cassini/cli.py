@@ -89,6 +89,41 @@ async def create_servers():
 
     return mqtt, http
 
+async def do_simple_command(printer, command_fn, success_msg):
+    mqtt, http = await create_servers()
+    connected = await printer.connect(mqtt, http)
+    if not connected:
+        logging.error("Failed to connect to printer")
+        sys.exit(1)
+    await command_fn()
+    logging.info(success_msg)
+
+async def do_list_files(printer, path):
+    mqtt, http = await create_servers()
+    connected = await printer.connect(mqtt, http)
+    if not connected:
+        logging.error("Failed to connect to printer")
+        sys.exit(1)
+    result = await printer.list_files(path)
+    if result is None:
+        logging.warning("No response (command may not be supported by firmware)")
+        return
+    if 'FileList' in result:
+        for f in result['FileList']:
+            print(f)
+    else:
+        logging.warning("No file list in response (command may not be supported by firmware)")
+        logging.debug(f"Response: {result}")
+
+async def do_delete_files(printer, filenames):
+    mqtt, http = await create_servers()
+    connected = await printer.connect(mqtt, http)
+    if not connected:
+        logging.error("Failed to connect to printer")
+        sys.exit(1)
+    await printer.delete_files(filenames)
+    logging.info("Files deleted")
+
 async def do_print(printer, filename):
     mqtt, http = await create_servers()
     connected = await printer.connect(mqtt, http)
@@ -154,6 +189,17 @@ def main():
     parser_print = subparsers.add_parser('print', help='Start printing a file already present on the printer') 
     parser_print.add_argument('filename', help='File to print')
 
+    subparsers.add_parser('pause', help='Pause the current print')
+    subparsers.add_parser('stop', help='Stop the current print')
+    subparsers.add_parser('resume', help='Resume a paused print')
+
+    parser_files = subparsers.add_parser('files', help='Manage files on the printer')
+    files_subparsers = parser_files.add_subparsers(title="file commands", dest="files_command", required=True)
+    parser_files_list = files_subparsers.add_parser('list', aliases=['ls'], help='List files on the printer')
+    parser_files_list.add_argument('--path', help='Path to list (default: /local/)', default='/local/')
+    parser_files_delete = files_subparsers.add_parser('delete', aliases=['rm'], help='Delete files from the printer')
+    parser_files_delete.add_argument('filenames', nargs='+', help='Files to delete')
+
     parser_connect_mqtt = subparsers.add_parser('connect-mqtt', help='Connect printer to particular MQTT server')
     parser_connect_mqtt.add_argument('address', help='MQTT host and port, e.g. "192.168.1.33:1883" or "mqtt.local:1883"')
 
@@ -200,8 +246,26 @@ def main():
         sys.exit(0)
 
     logging.info(f'Printer: {printer.describe()} ({printer.addr[0]})')
+
+    if args.command == "files":
+        if args.files_command in ("list", "ls"):
+            asyncio.run(do_list_files(printer, args.path))
+        elif args.files_command in ("delete", "rm"):
+            asyncio.run(do_delete_files(printer, args.filenames))
+        sys.exit(0)
+
+    if args.command in ("pause", "stop", "resume"):
+        cmd_map = {
+            "pause": (printer.pause_print, "Print paused"),
+            "stop": (printer.stop_print, "Print stopped"),
+            "resume": (printer.resume_print, "Print resumed"),
+        }
+        fn, msg = cmd_map[args.command]
+        asyncio.run(do_simple_command(printer, fn, msg))
+        sys.exit(0)
+
     if printer.busy:
-        logging.error(f'Printer is busy (status: {printer.current_status})')
+        logging.error(f'Printer is busy (status: {printer.current_status.name})')
         sys.exit(1)
 
     if args.command == "upload":

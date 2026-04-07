@@ -63,12 +63,17 @@ class FileStatus(IntEnum):
         return obj
 
 class Command(IntEnum):
-    CMD_0 = 0 # null data
-    CMD_1 = 1 # null data
-    DISCONNECT = 64 # Maybe disconnect?
-    START_PRINTING = 128 # "Filename": "X", "StartLayer": 0
-    UPLOAD_FILE = 256 # "Check": 0, "CleanCache": 1, "Compress": 0, "FileSize": 3541068, "Filename": "_ResinXP2-ValidationMatrix_v2.goo", "MD5": "205abc8fab0762ad2b0ee1f6b63b1750", "URL": "http://${ipaddr}:58883/f60c0718c8144b0db48b7149d4d85390.goo" },
-    SET_MYSTERY_TIME_PERIOD = 512 # "TimePeriod": 5000
+    STATUS_REFRESH = 0
+    REQUEST_ATTRIBUTES = 1
+    DISCONNECT = 64
+    START_PRINTING = 128
+    PAUSE_PRINTING = 129
+    STOP_PRINTING = 130
+    RESUME_PRINTING = 131
+    UPLOAD_FILE = 256
+    LIST_FILES = 258
+    DELETE_FILES = 259
+    SET_STATUS_UPDATE_PERIOD = 512
 
 def random_hexstr():
     return '%032x' % random.getrandbits(128)
@@ -159,14 +164,32 @@ class SaturnPrinter:
         topic = await asyncio.wait_for(self.mqtt.client_subscribed, timeout=self.timeout)
         logging.debug(f"Client subscribed to {topic}")
 
-        await self.send_command_and_wait(Command.CMD_0)
-        await self.send_command_and_wait(Command.CMD_1)
-        await self.send_command_and_wait(Command.SET_MYSTERY_TIME_PERIOD, { 'TimePeriod': 5000 })
+        await self.send_command_and_wait(Command.STATUS_REFRESH)
+        await self.send_command_and_wait(Command.REQUEST_ATTRIBUTES)
+        await self.send_command_and_wait(Command.SET_STATUS_UPDATE_PERIOD, { 'TimePeriod': 5000 })
 
         return True
 
     async def disconnect(self):
         await self.send_command_and_wait(Command.DISCONNECT)
+
+    async def pause_print(self):
+        await self.send_command_and_wait(Command.PAUSE_PRINTING)
+
+    async def stop_print(self):
+        await self.send_command_and_wait(Command.STOP_PRINTING)
+
+    async def resume_print(self):
+        await self.send_command_and_wait(Command.RESUME_PRINTING)
+
+    async def list_files(self, path="/local/"):
+        return await self.send_command_and_wait(Command.LIST_FILES, {"Url": path}, abort_on_bad_ack=False)
+
+    async def delete_files(self, file_list, folder_list=None):
+        return await self.send_command_and_wait(Command.DELETE_FILES, {
+            "FileList": file_list,
+            "FolderList": folder_list or [],
+        })
 
     async def upload_file(self, filename, start_printing=False):
         try:
